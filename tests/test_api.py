@@ -9,7 +9,12 @@ from fastapi.testclient import TestClient
 
 import app as app_module
 from app import app
-from logger import DEFAULT_ERROR_LOG, DEFAULT_STATUS_LOG, RequestLogger, configure_logging
+from logger import (
+    DEFAULT_ERROR_LOG,
+    DEFAULT_STATUS_LOG,
+    RequestLogger,
+    configure_logging,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -186,5 +191,87 @@ def test_logger_line_numbers_behavior(tmp_path):
     assert "[test_api.py] Informational message without line number" in status_text
     assert "test_api.py:" in error_text  # Contains line number
     assert "Error message with line number" in error_text
+
+    configure_logging(force_reconfigure=True)
+
+
+def test_critical_info_messages_routed_to_error_log(tmp_path):
+    """INFO-level messages carrying serious-error signals go to error.log, not status.log."""
+    sf, ef = tmp_path / "status_route.log", tmp_path / "error_route.log"
+    configure_logging(status_log_path=sf, error_log_path=ef, enable_console=False, force_reconfigure=True)
+
+    lg = RequestLogger("req-critical-info")
+    lg.info("ConflictError: Duplicate request_id: 'x' has already been processed.")
+    lg.info("RequestValidationError: missing required field 'pdf_path'")
+    lg.info("Fatal: unrecoverable shutdown while processing request")
+    lg.info("Plain informational message: request routed normally")
+
+    status_text = sf.read_text(encoding="utf-8")
+    error_text = ef.read_text(encoding="utf-8")
+
+    # Criticality-signalled INFO records must NOT be in status.log...
+    assert "ConflictError" not in status_text
+    assert "RequestValidationError" not in status_text
+    assert "Fatal" not in status_text
+    # ...and must be appended to error.log instead (still logged at INFO level).
+    assert "ConflictError: Duplicate request_id" in error_text
+    assert "[INFO ]" in error_text  # level preserved as INFO in the routed line
+    assert "RequestValidationError" in error_text
+    assert "Fatal: unrecoverable shutdown" in error_text
+    # Plain informational traffic stays in status.log only.
+    assert "Plain informational message" in status_text
+    assert "Plain informational message" not in error_text
+
+    configure_logging(force_reconfigure=True)
+
+
+def test_info_with_exception_goes_to_error_log(tmp_path):
+    """INFO messages carrying exc_info (traceback) are critical and land in error.log."""
+    import logging
+
+    sf, ef = tmp_path / "status_exc.log", tmp_path / "error_exc.log"
+    configure_logging(status_log_path=sf, error_log_path=ef, enable_console=False, force_reconfigure=True)
+
+    lg = RequestLogger("req-info-exc")
+    try:
+        raise RuntimeError("boom")
+    except RuntimeError:
+        # INFO with an attached traceback (RequestLogger.info passes exc_info=None,
+        # so exercise the stdlib path directly to simulate an info-level record that
+        # carries exception info).
+        lg._logger.log(
+            logging.INFO,
+            "Something failed but logged at info level",
+            extra={"request_id": lg.request_id},
+            exc_info=True,
+        )
+
+    status_text = sf.read_text(encoding="utf-8")
+    error_text = ef.read_text(encoding="utf-8")
+
+    assert "Something failed but logged at info level" not in status_text
+    assert "Something failed but logged at info level" in error_text
+    assert "RuntimeError: boom" in error_text  # traceback captured
+
+    configure_logging(force_reconfigure=True)
+
+
+def test_duplicate_request_id_info_error_goes_only_to_error_log(client, tmp_path, monkeypatch):
+    """The app's info-level duplicate-request message must not leak into status.log."""
+    sf, ef = tmp_path / "status_dup.log", tmp_path / "error_dup.log"
+    configure_logging(status_log_path=sf, error_log_path=ef, enable_console=False, force_reconfigure=True)
+
+    req_id = "req-dup-routing-001"
+    assert client.post("/process-pdf", json={"request_id": req_id, "pdf_path": "sample.pdf"}).status_code == 200
+    res = client.post("/process-pdf", json={"request_id": req_id, "pdf_path": "sample.pdf"})
+    assert res.status_code == 409
+
+    status_text = sf.read_text(encoding="utf-8")
+    error_text = ef.read_text(encoding="utf-8")
+
+    assert "ConflictError" not in status_text
+    assert "ConflictError: Duplicate request_id" in error_text
+    # Response lifecycle INFO lines for that request remain in status.log.
+    assert "Response sent: 409 Conflict" in status_text
 
     configure_logging(force_reconfigure=True)

@@ -1,0 +1,53 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+5 0 obj
+<< /Length 633 >>
+stream
+0.5 w
+72 600 m 72 696 l S
+192 600 m 192 696 l S
+312 600 m 312 696 l S
+432 600 m 432 696 l S
+72 600 m 432 600 l S
+72 624 m 432 624 l S
+72 648 m 432 648 l S
+72 672 m 432 672 l S
+72 696 m 432 696 l S
+BT /F1 10 Tf 77 680 Td (Name) Tj ET
+BT /F1 10 Tf 197 680 Td (Qty) Tj ET
+BT /F1 10 Tf 317 680 Td (Price) Tj ET
+BT /F1 10 Tf 77 656 Td (Widget) Tj ET
+BT /F1 10 Tf 197 656 Td (5) Tj ET
+BT /F1 10 Tf 317 656 Td (9.99) Tj ET
+BT /F1 10 Tf 77 632 Td (Gadget) Tj ET
+BT /F1 10 Tf 197 632 Td (2) Tj ET
+BT /F1 10 Tf 317 632 Td (19.50) Tj ET
+BT /F1 10 Tf 77 608 Td (Bolt) Tj ET
+BT /F1 10 Tf 197 608 Td (12) Tj ET
+BT /F1 10 Tf 317 608 Td (0.35) Tj ET
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000000311 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+995
+%%EOF

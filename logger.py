@@ -26,11 +26,58 @@ class RequestFormatter(logging.Formatter):
         return msg
 
 
+# Message-text markers that signal criticality regardless of the record's level.
+# Checked case-insensitively against the rendered message text.
+CRITICALITY_MARKERS = (
+    "ConflictError:",
+    "FileNotFoundError:",
+    "IsADirectoryError:",
+    "ValueError:",
+    "RequestValidationError:",
+    "Critical:",
+    "Fatal:",
+    "Unrecoverable",
+    "Failed to",
+)
+
+
+def record_is_critical(record: logging.LogRecord) -> bool:
+    """True when a record signals a serious error
+
+    A record is considered critical when:
+    - it carries exception/traceback info, or
+    - an explicit `critical=True` marker was passed via `extra`, or
+    - its message text contains a known criticality marker (e.g. an
+      error-class prefix logged at INFO level like "ConflictError: ...").
+    """
+    if getattr(record, "critical", False):
+        return True
+    if record.exc_info or record.exc_text:
+        return True
+    try:
+        message = record.getMessage()
+    except Exception:
+        return False
+    lowered = message.lower()
+    return any(marker.lower() in lowered for marker in CRITICALITY_MARKERS)
+
+
 class StatusLogFilter(logging.Filter):
-    """Allows only normal/informational logs into status.log."""
+    """Allows only normal/informational logs into status.log.
+
+    INFO-level messages that carry criticality signals (serious errors logged
+    at info level) are rejected here so they are appended to error.log instead.
+    """
 
     def filter(self, record: logging.LogRecord) -> bool:
-        return record.levelno < logging.ERROR
+        return record.levelno < logging.ERROR and not record_is_critical(record)
+
+
+class ErrorLogFilter(logging.Filter):
+    """Allows ERROR+ records, plus INFO-level records that signal serious errors."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return record.levelno >= logging.ERROR or record_is_critical(record)
 
 
 class RequestLogger:
@@ -97,16 +144,18 @@ def configure_logging(
 
     formatter = RequestFormatter()
 
-    # status.log handler (normal / info logs only)
+    # status.log handler (normal / info logs only; criticality-signalled
+    # info messages are excluded so they land in error.log instead)
     sh = logging.FileHandler(Path(status_log_path).resolve(), mode="a", encoding="utf-8")
     sh.setLevel(logging.INFO)
     sh.addFilter(StatusLogFilter())
     sh.setFormatter(formatter)
     logger.addHandler(sh)
 
-    # error.log handler (errors only)
+    # error.log handler (ERROR+ records, plus criticality-signalled INFO records)
     eh = logging.FileHandler(Path(error_log_path).resolve(), mode="a", encoding="utf-8")
-    eh.setLevel(logging.ERROR)
+    eh.setLevel(logging.DEBUG)
+    eh.addFilter(ErrorLogFilter())
     eh.setFormatter(formatter)
     logger.addHandler(eh)
 
